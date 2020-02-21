@@ -1,0 +1,323 @@
+---
+title: "MVA_Knit1"
+output: word_document
+---
+#Airbnb Price prediction and analysis for Istanbul
+```{r}
+#Airbnb Price prediction and analysis for Istanbul
+library(data.table)#Data. table is an extension of data. frame package in R. It is widely used for fast aggregation of large datasets,
+library(Hmisc)#data analysis funs
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(plotly)
+library(GGally)
+library(ggthemes)
+library(psych)
+library(relaimpo)
+library(e1071)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+AirbnbIstanbul<-read.csv("C:/Users/prach/Desktop/MVA/Copy_of_AirbnbIstanbul.csv")
+Istanbul <- copy(AirbnbIstanbul)
+View(Istanbul)
+str(Istanbul)
+#Checking number f rows and columns
+dim(Istanbul)
+class(Istanbul)
+names(Istanbul)
+attach(Istanbul)
+head(Istanbul,25) 
+str(Istanbul)#displays internal structure of R obj
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r}
+#To check data types of each colmn in DF
+sapply(Istanbul, class)
+
+#Looking for null values in whole dataset
+is.na(Istanbul)
+
+#To get the column names that have null values
+colnames(Istanbul)[colSums(is.na(Istanbul)) > 0] 
+# O/P :  "neighbourhood_group" "reviews_per_month"
+
+#Counting null values from these 2 columns
+sum(is.na(Istanbul$neighbourhood_group)) #16251 null values
+#all rows black so can delte this column
+
+sum(is.na(Istanbul$reviews_per_month)) #8484 null values
+#replacing nulls with zeros
+
+#Changing type to date for last_review column
+Istanbul$lastReviewnewe=as.Date(last_review,'%Y-%m-%d')
+names(Istanbul)
+#again checking for null values
+sum(is.na(Istanbul$lastReviewnew)) #16251 null va
+
+#Summary statistics for dataset
+summary(Istanbul)
+#
+glimpse(Istanbul)
+```
+
+
+```{r}
+####Data cleaning
+#Dropping column 'neighbourhood_group as its blank'
+sum(is.na(Istanbul$neighbourhood_group)) #16251 null values
+dim(Istanbul)
+#this tells all rows are blank so dropping column is OK
+#also dropping last_review and lastReviewnewe
+#Drop unnecessary columns
+Istanbul_1 <- Istanbul[,-c(5,13,17)]
+names(Istanbul_1)#no neighbourhood_group in new DF Istanbul_1
+
+#Creating new data table with all the quantitative column named Istanbul_num
+sapply(Istanbul, class)
+#Istanbul_num1 <- Istanbul[,c("id","host_id","latitude","longitude","price","minimum_nights","number_of_reviews","lastReviewnewe","reviews_per_month","calculated_host_listings_count","availability_365")]
+Istanbul_num2 <- Istanbul[,c("latitude","longitude","price","minimum_nights","number_of_reviews","calculated_host_listings_count","availability_365")]
+names(Istanbul_num2)
+View(Istanbul_num2)
+summary(Istanbul_num2)
+
+#Creating new data table with all the categorical columns named Istanbul_num
+sapply(Istanbul, class)
+#Istanbul_cat1 <- Istanbul[,c("name","neighbourhood","room_type","price")]
+Istanbul_cat2 <- Istanbul[,c("neighbourhood","room_type","price")]
+names(Istanbul_cat2)
+View(Istanbul_cat2)
+
+#Plotting distribution of Price
+
+ggplot(Istanbul, aes(price)) +
+  geom_histogram(bins = 30, aes(y = ..density..), fill = "purple") + 
+  geom_density(alpha = 0.2, fill = "purple") +
+  ggtitle("Distribution of price",
+          subtitle = "The distribution is very skewed") +
+  theme(axis.title = element_text(), axis.title.x = element_text()) +
+  geom_vline(xintercept = round(mean(Istanbul$price), 2), size = 2, linetype = 3)
+
+#As distribution is very skewed, again plotting Price histogram after logarithmic transformation
+ggplot(Istanbul, aes(price)) +
+  geom_histogram(bins = 30, aes(y = ..density..), fill = "purple") + 
+  geom_density(alpha = 0.2, fill = "purple") +
+  ggtitle("Transformed distribution of price",
+          subtitle = expression("With" ~'log'[10] ~ "transformation of x-axis")) +
+  #theme(axis.title = element_text(), axis.title.x = element_text()) +
+  geom_vline(xintercept = round(mean(Istanbul$price), 2), size = 2, linetype = 3) +
+  scale_x_log10() +
+  annotate("text", x = 1800, y = 0.75,label = paste("Mean price = ", paste0(round(mean(Istanbul$price), 2), "$")),
+           color =  "#32CD32", size = 8)
+
+#=======
+#Checking Price values with respect to KPIs
+# Price Per roomtype
+describeBy(Istanbul$price,Istanbul$room_type)
+# Price Per roomtype
+str(Istanbul$price)
+
+ggplot(Istanbul, aes(x = room_type, y = price)) +
+  geom_boxplot(aes(fill = room_type)) + scale_y_log10() +
+  xlab("Room type") + 
+  ylab("Price") +
+  ggtitle("Boxplots of price by room type",
+          subtitle = "Entire homes and apartments have the highest avg price") +
+  geom_hline(yintercept = mean(Istanbul$price), color = "purple", linetype = 2)
+
+#As per above plot Entire homes and apartments have the highest avg price
+#And Maximum prices for Entire home and Private room are comparable
+
+#Price per neighbourhood
+ggplot(Istanbul, aes(x = neighbourhood, y = price)) +
+  geom_boxplot(aes(fill = neighbourhood)) + scale_y_log10() +
+  xlab("Neighbourhood") + 
+  ylab("Price") +
+  ggtitle("Boxplots of price by Neighbourhood",
+          subtitle = "Neighbourhoods") +
+  geom_hline(yintercept = mean(Istanbul$price), color = "purple", linetype = 2)
+# For top 10 localities
+str(Istanbul_1)
+class(Istanbul_1)
+setDT(Istanbul_1)
+avgNeighbourhood=Istanbul_1[,avgneighprice:=mean(price),by=neighbourhood]
+Istanbul.4 <- avgNeighbourhood[price > avgneighprice]
+
+top10localities <- head(arrange(Istanbul.4,desc(Istanbul.4$price)), n = 10)
+
+ggplot(top10localities, aes(x = neighbourhood, y = price)) +
+  geom_boxplot(aes(fill = neighbourhood)) +  scale_y_log10() +
+  xlab("neighbourhood") + 
+  ylab("Price") +
+  ggtitle("Boxplots of price by neighbourhood",
+          subtitle = "to do") +
+  geom_hline(yintercept = mean(Istanbul$price), color = "purple", linetype = 2) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+#Above are top 6 neighbourhoods
+
+#Price per number of reviews
+ggplot(Istanbul, aes(x = number_of_reviews, y = price)) +
+  geom_boxplot(aes(fill = number_of_reviews)) + scale_y_log10() +
+  xlab("Number of Reviews") + 
+  ylab("Price") +
+  ggtitle("Boxplots of price by Number of Reviews",
+          subtitle = "Number of Reviews") +
+  geom_hline(yintercept = mean(Istanbul$price), color = "purple", linetype = 2)
+
+#As per this graph there is not much relation between price and number of reviews
+
+#Scatterplot
+plot(price ~ number_of_reviews, data=Istanbul,xlab='reviews', ylab = 'price',col='blue')
+#The most pricy listings are having less no of reviews
+
+plot(price ~ availability_365, data=Istanbul,xlab='availability', ylab = 'price')
+#It is hard to see a clear pattern but there is a lot of expensive objects with few available days and many available days
+
+plot(price ~ minimum_nights, data=Istanbul,xlab='minimum_nights', ylab = 'price')
+#with lesser number of 'min no of nights' , Prices are high
+#Prices decrease with increase in Min no of nights
+
+#Bar charts
+#no of listings vs room type
+ggplot(Istanbul,aes(x=room_type)) + geom_bar()+
+  ylab("Number of Listings") +
+  ggtitle("Number of listings Roomtype wise")
+#Private rooms are more in number
+
+#no of listings neighbourhoodwise
+ggplot(Istanbul,aes(x=neighbourhood)) + geom_bar() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  ylab("Number of Listings") +
+  ggtitle("no of listings neighbourhoodwise")
+
+#Beylikduzu has maximum no of listings followed by Silvri
+
+#Scatter plot in one screen Price vs Room type & Neighbourhood
+
+x <- ggplot(Istanbul, aes(room_type, price)) +
+  geom_jitter(color = "blue", alpha = 0.5) +
+  theme_light()
+
+y <- ggplot(Istanbul, aes(neighbourhood, price)) +
+  geom_jitter(color = "green", alpha = 0.5) +
+  theme_light()
+
+library(ggplot2)
+library(cowplot)
+p <- plot_grid(x, y) 
+title <- ggdraw() + draw_label("Price vs Room type & Neighbourhood", fontface='bold')
+plot_grid(title, p, ncol=1, rel_heights=c(0.1, 1))
+
+
+#To check if data is normal or not
+#Checking for individual normality
+qqnorm(Istanbul_num2[,"price"], main = "price",col="blue")
+qqline(Istanbul_num2[,"price"]) #not very bad
+skewness(price)
+#skewness is 28.86 so its high skewness as out of range of -1 to 1
+#Price not normal
+
+qqnorm(Istanbul_num2[,"number_of_reviews"], main = "Number of Reviews",col="blue")
+qqline(Istanbul_num2[,"number_of_reviews"]) #not very bad
+skewness(number_of_reviews)#5.751225 highly skewed
+#no of reviews not normal
+
+qqnorm(Istanbul_num2[,"calculated_host_listings_count"], main = "calculated_host_listings_count",col="blue")
+qqline(Istanbul_num2[,"calculated_host_listings_count"]) #not very bad
+skewness(calculated_host_listings_count)
+#5.959362 highly skewed
+#Calc host listings not normal
+
+qqnorm(Istanbul_num2[,"availability_365"], main = "availability_365",col="blue")
+qqline(Istanbul_num2[,"availability_365"]) #not very bad
+#availability_365 looks a bit normalized
+skewness(availability_365)#-0.687512 moderately skewed
+#Availability looks moderately normal
+
+#multivariate plot
+
+#===========
+#distance
+#dist matrix
+names(Istanbul_num2)
+Istanbul.cm <- colMeans(Istanbul_num2)
+Istanbul.cm
+#cov matrix
+Istanbul.S <- cov(Istanbul_num2)
+Istanbul.S
+#There is not much correlation between individual KPIs
+
+#Dist matrix
+#Istanbul.d <- apply(Istanbul_num2, MARGIN = 1, function(Istanbul_num2)t(Istanbul_num2 - Istanbul.cm) %% solve(Istanbul.S) %% (Istanbul_num2 - Istanbul.cm))
+#Istanbul.d
+
+#Multivariate plot
+#plot(qchisq((1:nrow(Istanbul_num2) - 1/2) / nrow(Istanbul_num2), df = 7), sort(Istanbul.d),
+ #    xlab = expression(paste(chi[7]^2, " Quantile")),
+  #   ylab = "Ordered distances")
+#abline(a = 0, b = 1)
+#This tells that data is not multivariate normal
+
+#Correlation matrix
+cor(Istanbul_num2)
+library(GGally)
+#ggcorr(Istanbul_num2)
+ggcorr(Istanbul)
+#Some correlation between Calculated host listing and noof reviews
+#Some correlation betweenPrice and calculated_host_listings_count
+#Some correlation betweenPrice and availability_365
+#A bit relation between Price and Lattitude
+
+#Correlation of quantitative var
+library(corrplot)
+M <- cor(Istanbul_num2)
+M
+corrplot(cor(Istanbul_num2))
+
+
+#=======
+#above avg price objs
+#Above Average Price Objects by Neighourhood Areas
+
+Istanbul %>% filter(price >= mean(price)) %>% group_by(neighbourhood, room_type) %>% tally %>% 
+  ggplot(aes(reorder(neighbourhood,desc(n)), n, fill = room_type)) +
+  xlab(NULL) +
+  ylab("Number of objects") +
+  ggtitle("Number of above average price objects",
+          subtitle = "Most of them are entire homes or apartments") +
+  geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+#Top 2 neighbourhood with max prices
+Istanbul %>% filter(price == max(price)) %>% group_by(neighbourhood) %>% tally %>% 
+  ggplot(aes(reorder(neighbourhood,desc(n)), n )) +
+  xlab(NULL) +
+  ylab("Number of objects") +
+  ggtitle("Number of above average price objects",
+          subtitle = "Most of them are entire homes or apartments") +
+  geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+#Most of listings are Entire home or apartments
+
+#Above Average Number of listings by Neighourhood Areas
+
+library(psych)
+names(Istanbul)
+pairs.panels(Istanbul[1:100,c(6,7,8,9,10,11,12,13,14,15,16)])
+#Doing only for 100 rows here
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
