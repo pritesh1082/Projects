@@ -1,3 +1,12 @@
+---
+title: "Abnb_Istanbul_Price_Prediction"
+author: "Pritesh"
+date: "2/23/2020"
+output: word_document
+---
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
 library(data.table)
 library(fpp)
 library(fpp2)
@@ -8,7 +17,6 @@ library(e1071)
 library(dplyr)
 library(corrplot)
 library(GGally)
-library(reshape2)
 AirbnbIstanbul <- read.csv("C:/Pritesh/Rutgers/Courses/Projects/MVA/Dataset/AirbnbIstanbul.csv", stringsAsFactors=FALSE)
 Istanbul <- copy(AirbnbIstanbul)
 class(Istanbul)
@@ -170,7 +178,7 @@ Istanbul.2 <- Istanbul[,c(6,7,9,10,11,13,14,15)] ## filtering dataset containing
 ## qqnorm plot ## indicating that the variables are not normalized
 q1 = qqnorm(Istanbul.2$price)
 q2 = qqnorm(Istanbul.2$number_of_reviews)
-skewness(price)
+skewness(Istanbul.2$price)
 #skewness is 28.86 so its high skewness as out of range of -1 to 1
 #Price not normal
 
@@ -186,19 +194,16 @@ plot(qchisq((1:nrow(Istanbul.3) - 1/2) / nrow(Istanbul.3), df = 7), sort(Istanbu
 abline(a = 0, b = 1) 
 ## this signifies that multi variables are not normally distributed
 
-
 #Correlation matrix
 corr <- cor(Istanbul.3)
 corrmelt <- melt(corr)
-ggplot(corrmelt) + geom_tile(aes(Var1, Var2, fill=value))
-
+ggplot(corrmelt) + geom_tile(aes(Var1, Var2, fill=value)) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
 #Some correlation between Calculated host listing and noof reviews
 #Some correlation between Price and calculated_host_listings_count
 #Some correlation between Price and availability_365
 #Some correlation between calculated_host_listings_count & availability_365
 #A bit of relation between Price and Lattitude
-
-
-
+```
 
