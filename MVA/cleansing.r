@@ -190,7 +190,8 @@ abline(a = 0, b = 1)
 #Correlation matrix
 corr <- cor(Istanbul.3)
 corrmelt <- melt(corr)
-ggplot(corrmelt) + geom_tile(aes(Var1, Var2, fill=value))
+ggplot(corrmelt) + geom_tile(aes(Var1, Var2, fill=value)) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
 
 #Some correlation between Calculated host listing and noof reviews
