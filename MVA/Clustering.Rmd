@@ -1,0 +1,212 @@
+---
+title: "Clustering_ananlysis_on_Abnb_Istanbul"
+author: "Pritesh"
+date: "3/5/2020"
+output: word_document
+---
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r cars}
+library(data.table)
+library(fpp)
+library(fpp2)
+library(cowplot)
+library(tidyverse)
+library(psych)
+library(e1071)
+library(dplyr)
+library(corrplot)
+library(GGally)
+library(reshape2)
+AirbnbIstanbul <- read.csv("C:/Pritesh/Rutgers/Courses/Projects/MVA/Dataset/AirbnbIstanbul.csv", stringsAsFactors=FALSE)
+Istanbul <- copy(AirbnbIstanbul)
+class(Istanbul)
+setDT(Istanbul)
+
+str(Istanbul)
+Istanbul[,room_type:=factor(room_type)]
+Istanbul[,neighbourhood:=factor(neighbourhood)]
+Istanbul[,last_review:=as.Date(last_review,'%Y-%m-%d')] ## converting last_review to date datatype
+
+# datatypes looks better now. hence will see again for NA values 
+grep ('NA',Istanbul) # 2, 5, 13 and 14 column have NA values
+Istanbul[is.na(neighbourhood_group),NROW(neighbourhood_group)] # entire obs. is blank, will drop this var
+Istanbul[is.na(last_review),NROW(last_review)] ## there are 8484 NA values
+Istanbul[is.na(reviews_per_month),NROW(reviews_per_month)] ## there are 8484 NA values
+
+Istanbul$neighbourhood_group <- NULL ## removing neighbourhood_group column
+Istanbul[is.na(reviews_per_month),reviews_per_month:=0] ## nearly 50% of the dataset is filled with NA.
+# hence we can't simply remove these many rows. Hence imputing with 0 values.
+
+
+range(Istanbul$price) ## range of price
+avgNeighbourhood=Istanbul[,avgneighprice:=mean(price),by=neighbourhood]
+summary(Istanbul$price)
+ggplot(Istanbul,aes(y=price)) + geom_boxplot(fill='yellow') # the boxplot shows that most of the units have price less than 10000
+
+## no. of reviews and neighbourhood relation
+summary(Istanbul$number_of_reviews)
+ggplot(Istanbul,aes(y=number_of_reviews)) + geom_boxplot(fill='yellow')
+ggplot(Istanbul,aes(x=neighbourhood,y=number_of_reviews)) + geom_boxplot(fill='yellow') + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+nrow(Istanbul[price > 1000]) ## price > 1000, there are only 613 units out of ~16000 which have price > 1000
+# hence we'll remove those. 
+Istanbul.clust <- Istanbul[price < 1000 & number_of_reviews > 0] ## price > 1000
+ggplot(Istanbul.clust,aes(y=price)) + geom_boxplot(fill='yellow') # ggplot looks better now 
+
+########## K-means Clustering #########
+library(cluster)
+Istanbul_clus = data.frame(
+  Istanbul.clust$price,
+  Istanbul.clust$number_of_reviews,
+  Istanbul.clust$reviews_per_month)
+
+# Making property id as rownames, clusters will be formed with id as observations.
+rownames(Istanbul_clus) <- Istanbul.clust$id
+##Scaling done to make the data on one scale.
+Istanbul.Scale <- scale(Istanbul_clus[,1:3])
+#Here we have selected first row to see how our scaled matrix is like
+head(Istanbul.Scale,1)
+
+# We will find K-means by taking k=2, 3, 4, 5, 6...
+# Centers (k's) are numbers thus, 10 random sets are chosen
+
+#For 2 clusters, k-means = 2
+set.seed(123)
+kmeans2.Istanbul <- kmeans(Istanbul.Scale,2,nstart = 10)
+# Computing the percentage of variation accounted for two clusters
+perc_var_kmeans2 <- round(100*(1 - kmeans2.Istanbul$betweenss/kmeans2.Istanbul$totss),1)
+names(perc_var_kmeans2) <- "Perc. 2 clus"
+perc_var_kmeans2
+
+# Computing the percentage of variation accounted for. Three clusters
+kmeans3.Istanbul <- kmeans(Istanbul.Scale,3,nstart = 10)
+perc.var.3 <- round(100*(1 - kmeans3.Istanbul$betweenss/kmeans3.Istanbul$totss),1)
+names(perc.var.3) <- "Perc. 3 clus"
+perc.var.3
+
+# Computing the percentage of variation accounted for. Four clusters
+kmeans4.Istanbul  <- kmeans(Istanbul.Scale,4,nstart = 10)
+perc.var.4 <- round(100*(1 - kmeans4.Istanbul$betweenss/kmeans4.Istanbul$totss),1)
+names(perc.var.4) <- "Perc. 4 clus"
+perc.var.4
+
+# Computing the percentage of variation accounted for. Five clusters
+kmeans5.Istanbul  <- kmeans(Istanbul.Scale,5,nstart = 10)
+perc.var.5 <- round(100*(1 - kmeans5.Istanbul$betweenss/kmeans5.Istanbul$totss),1)
+names(perc.var.5) <- "Perc. 5 clus"
+perc.var.5
+
+# Computing the percentage of variation accounted for. Six clusters
+kmeans6.Istanbul  <- kmeans(Istanbul.Scale,6,nstart = 10)
+perc.var.6 <- round(100*(1 - kmeans6.Istanbul$betweenss/kmeans6.Istanbul$totss),1)
+names(perc.var.6) <- "Perc. 6 clus"
+perc.var.6
+#
+
+# Identify the Best K Clusters
+wss=c()########## empty vector to hold wss
+for(i in 2:10)#### from 2 to 10 cluster
+{
+  km = kmeans(Istanbul.Scale[,1:3],i)
+  wss[i-1]=km$tot.withinss
+}
+wss
+elbowdt = data.table(num=2:10,wss)
+ggplot(elbowdt,aes(x=num,y=wss)) + geom_line()
+elbowdt
+
+# For k = 6 the between sum of square/total sum of square ratio tends to change slowly 
+# and remain less changing as compared to others. Therefore, k = 6 should be a good choice for the number of clusters.
+
+# Saving six k-means clusters in a list
+clus1 <- matrix(names(kmeans6.Istanbul$cluster[kmeans6.Istanbul$cluster == 1]), 
+                ncol=1, nrow=length(kmeans6.Istanbul$cluster[kmeans6.Istanbul$cluster == 1]))
+
+colnames(clus1) <- "Cluster 1"
+
+clus2 <- matrix(names(kmeans6.Istanbul$cluster[kmeans6.Istanbul$cluster == 2]), 
+                ncol=1, nrow=length(kmeans6.Istanbul$cluster[kmeans6.Istanbul$cluster == 2]))
+colnames(clus2) <- "Cluster 2"
+
+clus3 <- matrix(names(kmeans6.Istanbul$cluster[kmeans6.Istanbul$cluster == 3]), 
+                ncol=1, nrow=length(kmeans6.Istanbul$cluster[kmeans6.Istanbul$cluster == 3]))
+colnames(clus3) <- "Cluster 3"
+
+clus4 <- matrix(names(kmeans6.Istanbul$cluster[kmeans6.Istanbul$cluster == 4]), 
+                ncol=1, nrow=length(kmeans6.Istanbul$cluster[kmeans6.Istanbul$cluster == 4]))
+colnames(clus4) <- "Cluster 4"
+
+clus5 <- matrix(names(kmeans6.Istanbul$cluster[kmeans6.Istanbul$cluster == 5]), 
+                ncol=1, nrow=length(kmeans6.Istanbul$cluster[kmeans6.Istanbul$cluster == 5]))
+colnames(clus5) <- "Cluster 5"
+
+clus6 <- matrix(names(kmeans6.Istanbul$cluster[kmeans6.Istanbul$cluster == 6]), 
+                ncol=1, nrow=length(kmeans6.Istanbul$cluster[kmeans6.Istanbul$cluster == 6]))
+colnames(clus6) <- "Cluster 6"
+
+
+#list(clus1,clus2,clus3,clus4,clus5,clus6)
+
+Istanbul_clus_Out <- cbind(Istanbul_clus, clusterNumber = kmeans6.Istanbul$cluster)
+
+class(Istanbul_clus_Out)
+setDT(Istanbul_clus_Out)
+
+Istanbul_cluster1 <- Istanbul_clus_Out[clusterNumber == 1]
+Istanbul_cluster2 <- Istanbul_clus_Out[clusterNumber == 2]
+Istanbul_cluster3 <- Istanbul_clus_Out[clusterNumber == 3]
+Istanbul_cluster4 <- Istanbul_clus_Out[clusterNumber == 4]
+Istanbul_cluster5 <- Istanbul_clus_Out[clusterNumber == 5]
+Istanbul_cluster6 <- Istanbul_clus_Out[clusterNumber == 6]
+
+names(Istanbul_cluster1) <- c("price","number_of_reviews","reviews_per_month","clusterNumber")
+names(Istanbul_cluster2) <- c("price","number_of_reviews","reviews_per_month","clusterNumber")
+names(Istanbul_cluster3) <- c("price","number_of_reviews","reviews_per_month","clusterNumber")
+names(Istanbul_cluster4) <- c("price","number_of_reviews","reviews_per_month","clusterNumber")
+names(Istanbul_cluster5) <- c("price","number_of_reviews","reviews_per_month","clusterNumber")
+names(Istanbul_cluster6) <- c("price","number_of_reviews","reviews_per_month","clusterNumber")
+
+head(Istanbul_cluster1)
+mean(Istanbul_cluster1$price)
+mean(Istanbul_cluster1$number_of_reviews)
+mean(Istanbul_cluster1$reviews_per_month)
+
+head(Istanbul_cluster2)
+mean(Istanbul_cluster2$price)
+mean(Istanbul_cluster2$number_of_reviews)
+mean(Istanbul_cluster2$reviews_per_month)
+
+head(Istanbul_cluster3)
+mean(Istanbul_cluster3$price)
+mean(Istanbul_cluster3$number_of_reviews)
+mean(Istanbul_cluster3$reviews_per_month)
+
+head(Istanbul_cluster4)
+mean(Istanbul_cluster4$price)
+mean(Istanbul_cluster4$number_of_reviews)
+mean(Istanbul_cluster4$reviews_per_month)
+
+head(Istanbul_cluster5)
+mean(Istanbul_cluster5$price)
+mean(Istanbul_cluster5$number_of_reviews)
+mean(Istanbul_cluster5$reviews_per_month)
+
+head(Istanbul_cluster6)
+mean(Istanbul_cluster6$price)
+mean(Istanbul_cluster6$number_of_reviews)
+mean(Istanbul_cluster6$reviews_per_month)
+
+## From observing the mean price and no. of reviews for the all the six clusters, 
+## cluster with mean price of 260 and average rating 137 is the best choice for customers
+
+##Now we will plot these clusters 
+library(fpc)
+plotcluster(Istanbul_clus,kmeans6.Istanbul$cluster)
+
+```
+

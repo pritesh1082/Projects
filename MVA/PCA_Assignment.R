@@ -10,7 +10,7 @@ library(psych)
 library(relaimpo)
 library(e1071)
 
-AirbnbIstanbul<-read.csv("C:/Alok/OneDrive/Rutgers_MITA/Semester2/MVA/R/AirbnbIstanbul.csv",stringsAsFactors = FALSE)
+AirbnbIstanbul<- read.csv("C:/Pritesh/Rutgers/Courses/Projects/MVA/Dataset/AirbnbIstanbul.csv", stringsAsFactors=FALSE)
 Istanbul <- copy(AirbnbIstanbul)
 View(Istanbul)
 str(Istanbul)
