@@ -29,7 +29,7 @@ Istanbul_num2 <- Istanbul[,c("latitude","longitude","price","minimum_nights","nu
 setDT(Istanbul_num2)
 cor(Istanbul_num2)
 
-#Very little correlation between 'Number of reviews and  calculated host listing' & 'calcHostlisting and availability365'
+#Very little correlation between 'Number of reviews and  calculated host listing - 0.174662879' & 'calcHostlisting and availability365 - 0.173068073'
 #PCA
 #Applying PCA on numeric data as it's not much recommende for categorical data
 Istanbul_ip_pca <- prcomp(Istanbul_num2,scale=TRUE)
@@ -45,10 +45,11 @@ summary(Istanbul_ip_pca)
 #As per Summary output, 'Cumulative Proportion' field, 88.97% of Cummulative variance is explained by PC1, PC2,----PC6
 #So we will have to include PC1 till PC6 to prevent loss of Information.
 
+Istanbul_ip_pca$sdev
 # A table containing eigenvalues and %'s accounted, follows
 # Eigenvalues are sdev^2
 (eigen_Istanbul <- Istanbul_ip_pca$sdev^2)
-names(eigen_Istanbul) <- paste("PC",1:7,sep="")
+names(eigen_Istanbul) <- paste("PC",1:7,sep="")## giving names PC1 to PC7
 eigen_Istanbul
 names(eigen_Istanbul)
 #Taking Sum of all Eigen values
@@ -93,7 +94,7 @@ plot(log(eigen_Istanbul), xlab = "Component number",ylab = "log(Component varian
 
 #=====second part===
 names(Istanbul_ip)
-Istanbultyp_pca <- cbind(data.frame(neighbourhood,room_type),Istanbul_ip_pca$x)
+Istanbultyp_pca <- cbind(data.frame(neighbourhood,room_type),Istanbul_ip_pca$x) ## Istanbul_ip_pca$x is the transformed matrix
 names(Istanbultyp_pca)
 #Istanbultyp_pca This is our new dataset
 head(Istanbultyp_pca,5)

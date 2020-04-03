@@ -1,0 +1,289 @@
+---
+title: "mulreg"
+output: word_document
+---
+
+```{r}
+library(data.table)
+library(fpp)
+library(fpp2)
+library(cowplot)
+library(tidyverse)
+library(psych)
+library(e1071)
+library(dplyr)
+library(corrplot)
+library(GGally)
+library(reshape2)
+#AirbnbIstanbul <- read.csv("C:/Pritesh/Rutgers/Courses/Projects/MVA/Dataset/AirbnbIstanbul.csv", stringsAsFactors=FALSE)
+#AirbnbIstanbul<-read.csv("C:/Alok/OneDrive/Rutgers_MITA/Semester2/MVA/R/AirbnbIstanbul.csv",stringsAsFactors = FALSE)
+AirbnbIstanbul <- read.csv("C:/Users/prach/Desktop/MVA/Copy_of_AirbnbIstanbul.csv", stringsAsFactors = FALSE)
+
+Istanbul <- copy(AirbnbIstanbul)
+class(Istanbul)
+setDT(Istanbul)
+
+
+
+# data exploration and cleansing #
+str(Istanbul) ## to check data type of each var.
+grep('NA',Istanbul) ## indicates NA values are there in 2nd, 5th and 14th column
+# i.e. name, neighbourhood_group and reviews_per_month have NA values
+head(Istanbul,10)  
+dim(Istanbul) # 16251 obs. and 16 vars
+summary(Istanbul) ## summarized view of all the feature/vars
+unique(Istanbul$room_type) ## 3 unique room types
+unique(Istanbul$neighbourhood) ## 39 unique neighbourhoods
+
+
+
+## since, I used stringsAsFactors=FALSE while importing the dataset, few of the columns
+## like name, host_name, neighbourhood and room_type belongs to character data type 
+## hence, will factor neighbourhood and room_type for now. name and host_name doesn't seem
+## to be much interest for now, hence will leave those. 
+str(Istanbul)
+Istanbul[,room_type:=factor(room_type)]
+Istanbul[,neighbourhood:=factor(neighbourhood)]
+Istanbul[,last_review:=as.Date(last_review,'%Y-%m-%d')] ## converting last_review to date datatype
+
+# datatypes looks better now. hence will see again for NA values 
+grep ('NA',Istanbul) # 2, 5, 13 and 14 column have NA values
+Istanbul[is.na(neighbourhood_group),NROW(neighbourhood_group)] # entire obs. is blank, will drop this var
+Istanbul[is.na(last_review),NROW(last_review)] ## there are 8484 NA values
+Istanbul[is.na(reviews_per_month),NROW(reviews_per_month)] ## there are 8484 NA values
+
+Istanbul$neighbourhood_group <- NULL ## removing neighbourhood_group column
+Istanbul[is.na(reviews_per_month),reviews_per_month:=0] ## nearly 50% of the dataset is filled with NA.
+# hence we can't simply remove these many rows. Hence imputing with 0 values.
+
+
+
+# removing outliers
+
+Istanbul.1 <- Istanbul[price < 1000]
+summary(Istanbul.1)
+
+# including all the categorical and numerical columns
+Istanbul_Reg <- Istanbul.1[,c("neighbourhood","latitude","longitude","room_type","price","minimum_nights","number_of_reviews","reviews_per_month","calculated_host_listings_count","availability_365")]
+
+
+library(caTools)
+set.seed(123)
+split = sample.split(Istanbul_Reg$price, SplitRatio = 0.8)
+training_Istanbul = subset(Istanbul_Reg, split == TRUE)
+test_Istanbul = subset(Istanbul_Reg, split == FALSE)
+
+summary(training_Istanbul)
+summary(test_Istanbul)
+
+##dim(Istanbul_Reg)
+##train=Istanbul_Reg[1:14000,]
+##test=Istanbul_Reg[14001:15638,]
+##summary(train)
+##summary(test)
+
+
+# Fitting Multiple Linear Regression to the Training set with all the independent vars.
+Istanbul_m1 = lm(formula = price ~ .,data = training_Istanbul)
+summary(Istanbul_m1)#Adjusted R-squared:  0.2425 F-statistic: 86.14
+
+plot(Istanbul_m1)
+
+## too many categorical columns for neighbourhood and not too significant for my neighbourhoods. Hence dropping it.
+Istanbul_m2 = lm(price ~ latitude+longitude+room_type+minimum_nights+number_of_reviews+reviews_per_month+calculated_host_listings_count+availability_365,data = training_Istanbul)
+summary(Istanbul_m2)#Adjusted R-squared:  0.2085 F-statistic: 366.9
+plot(Istanbul_m1)
+
+# dropping longitude var as p-value > .05
+Istanbul_m3 = lm(price ~ latitude+room_type+minimum_nights+reviews_per_month+calculated_host_listings_count+availability_365,data = training_Istanbul)
+summary(Istanbul_m3)#Adjusted R-squared:  0.2086 F-statistic: 471.6
+
+## number of reviews and review per month have multicollinearity
+
+Istanbul_m4 = lm(price ~ latitude+room_type+minimum_nights+number_of_reviews+calculated_host_listings_count+availability_365,data = training_Istanbul)
+summary(Istanbul_m4)#Adjusted R-squared:  0.1984 F-statistic: 442.9
+plot(Istanbul_m1)
+
+#Checking for best model with Step function
+stepIstanbul <- step(Istanbul_m1, direction = "backward") ## full model
+stepIstanbul
+summary(stepIstanbul)
+
+#Trying with longitude instead of lattitude, also taking out calc.hostlisting AS PER Stepaic output
+Istanbul_m5= lm(price ~ longitude+room_type+minimum_nights+reviews_per_month+availability_365,data = training_Istanbul)
+summary(Istanbul_m5)#Adjusted R-squared:  0.2065 F-statistic: 542
+plot(Istanbul_m5)
+
+#Removing longitude as its not significant
+Istanbul_m6= lm(price ~ room_type+minimum_nights+reviews_per_month+availability_365,data = training_Istanbul)
+summary(Istanbul_m6)
+# Residual standard error: 158.5 on 12495 degrees of freedom
+# Multiple R-squared:  0.2065,	Adjusted R-squared:  0.2062 
+# F-statistic: 650.4 on 5 and 12495 DF,  p-value: < 2.2e-16
+summary(Istanbul_m3)
+#Residual standard error: 158.3 on 12493 degrees of freedom
+#Multiple R-squared:  0.209,	Adjusted R-squared:  0.2086 
+#F-statistic: 471.6 on 7 and 12493 DF,  p-value: < 2.2e-16
+
+AIC(Istanbul_m3)
+AIC(Istanbul_m6)
+
+
+```
+```{r}
+## comparing models ##
+anova(Istanbul_m3,Istanbul_m6)
+
+
+AIC(Istanbul_m3)
+
+#anova(fit1, fit2)
+#step <- stepAIC(Istanbul_m1, direction="both")
+#step$anova # display results
+#This shows that AIC reduces a little when 'Calculated host listings' and lattitude are included.
+#So selecting Istanbul_m3
+
+#We would go ahead with model 'Istanbul_m3' as it has high Fstat, its including at least 1 of the 
+#locations variable and its covering little more variance than other models.
+
+ggpairs(data=training_Istanbul[,-1], title="Istanbul_Abnb data")
+#As per pairs plot, there is not much corelation between variables and Price
+#Number of reviews and reviews per month is correlated so we are including only 1 of them in regression.
+
+#Printing the range of coefficients with 95% confidence intervals
+x=confint(Istanbul_m3,level=0.95)
+x
+
+# Assessing Outliers
+library(car)
+outlierTest(Istanbul_m3) #
+#Outliers are detected for the observations where Price is very high(Price>900)
+#The record at given row numbers are outliers. 
+
+#qqplot for plotting studentized residuals
+qqPlot(Istanbul_m3, main="QQ Plot")
+
+leveragePlots(Istanbul_m3) # leverage plots
+
+# Influential Observations
+# added variable plots
+avPlots(Istanbul_m3)
+#The above plots give the row numbers of some influential observations.
+
+# Cook's D plot to find out the data points which strongly influences the 
+#fitted values.
+#Bar Plot of Cook's distance to detect observations that strongly influence fitted values of the model. Cook's distance was introduced by American statistician R Dennis Cook in 1977. It is used to identify influential data points. It depends on both the residual and leverage i.e it takes it account both the x value and y value of the observation.
+#A data point having a large cook's d indicates that the data point strongly influences the fitted values.
+# identify D values > 4/(n-k-1)
+#cooks dist formula below
+cutoff <- 4/((nrow(training_Istanbul)-length(Istanbul_m3$coefficients)-2))
+plot(Istanbul_m3, which=4, cook.levels=cutoff)
+# Representation of above data using Influence Plot
+influencePlot(Istanbul_m3, id.method="identify", main="Influence Plot", sub="Circle size is proportial to Cook's Distance" )
+#bigger circles here means more cooks dist -- thats because oy x or y outliers
+#These points negatively influence our model results.
+######################################################################
+# Normality of Residuals
+
+#Plotting residuals and fitted values
+plot(Istanbul_m3)
+
+#Plotting Residuals
+res_mreg <- Istanbul_m3$residuals
+plot(res_mreg)
+#There is no pattern in residuals 
+plot(Istanbul_m3)
+summary(res_mreg)
+#Mean of residuals = zero
+
+### plotting residuals histogram 
+resdf = data.table('res'=Istanbul_m3$residuals)
+ggplot(resdf ,aes(x=res)) + geom_histogram(bins=10,fill ='purple',color='black')
+
+# distribution of studentized residuals
+library(MASS)
+sresid <- studres(Istanbul_m3)
+hist(sresid, freq=FALSE,
+     main="Distribution of Studentized Residuals")
+xfit<-seq(min(sresid),max(sresid),length=40)
+yfit<-dnorm(xfit)
+lines(xfit, yfit)
+
+#Above histograms show that residuals plotted are normally distributed
+#So our model Istanbul_m3 is good
+#/////
+# Evaluate homoscedasticity
+# non-constant error variance test
+ncvTest(Istanbul_m3)
+# plot studentized residuals vs. fitted values
+spreadLevelPlot(Istanbul_m3)
+#Multi-collinearity
+# Evaluate Collinearity
+vif(Istanbul_m3) # variance inflation factors
+sqrt(vif(Istanbul_m3)) > 2 # problem?
+#Nonlinearity use below crplots or ceresplots to find out nonlinearity
+# component + residual plot
+crPlots(Istanbul_m3)
+# Ceres plots
+ceresPlots(Istanbul_m3)
+#///////
+
+###
+# Global test of model assumptions
+#install.packages("gvlma", lib="/Library/Frameworks/R.framework/Versions/3.5/Resources/library")
+library(gvlma) #gives more thn lm basic regression is same
+gvmodel <- gvlma(Istanbul_m3)
+summary(gvmodel)
+
+# Predicting the Price for the Test set 
+y_pred = predict(Istanbul_m3, newdata = test_Istanbul)
+head(y_pred)
+
+### to test ##
+##plot(res_mreg)
+# Root-mean squared error
+#rmse.lm <- sqrt(sum((y_pred - test_Istanbul$price)^2)/
+#                  length(test_Istanbul$price))
+
+#c(RMSE = rmse.lm, R2 = summary(Istanbul_Reg)$r.squared)
+
+#Alternatively forecast function can be used to Predict 
+library(forecast)
+head(fitted(Istanbul_m3)) #Printing fitted values
+fc = forecast(Istanbul_m3,h=30,newdata = test_Istanbul)
+head(fc)
+#Printing accuracy
+accuracy(f=fc,x=test_Istanbul,test=NULL,d=NULL,D=NULL)
+
+#===============================
+
+
+##Plot of predicted price vs actual price
+##plot(y_pred,test_Istanbul$price, xlab = "Predicted Price", ylab = "Actual Price")
+##accuracy(Istanbul_m3)
+##accuracy(Istanbul_m6)
+                       #ntree = 10)
+
+# Calculate Relative Importance for Each Predictor
+#install.packages("relaimpo", lib="/Library/Frameworks/R.framework/Versions/3.5/Resources/library")
+library(relaimpo)
+calc.relimp(Istanbul_m3)
+
+# Bootstrap Measures of Relative Importance (1000 samples)
+bootres <- boot.relimp(Istanbul_m3, b = 1000)
+rel_imp<-booteval.relimp(bootres) # print result
+plot(rel_imp) # plot result
+
+#As per above plot, room type plays important role, followed by availability
+
+#Predicting the Price value with our model giving one observation values as input
+#The actual Price value = 100 for this observation
+
+predict.lm(Istanbul_m3,data.frame(latitude=40.99467,room_type="Private room",
+                                  minimum_nights=1,number_of_reviews=0,reviews_per_month=0,
+                                  calculated_host_listings_count=1,availability_365=364))
+#The predicted value is 198.6143 and actual value is 100
+
+
+
+```
