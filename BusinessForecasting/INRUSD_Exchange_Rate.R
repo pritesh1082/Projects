@@ -200,8 +200,14 @@ plot(train,xlab="Time",ylab="USD/INR Exchange Rate ",main='Arima model')
 model1 <- arima(train,order=c(4,1,1))
 plot(model1$residuals)
 summary(model1)
+
+# since the p-value > .05, we fail to reject H0. Thus residuals are not correlated.
+# which means our model is validated and good to go for prediction.
+Box.test(model1$residuals,10,type='Ljung') # check the residuals Box-Ljung test 
+Box.test(model1$residuals^2,10,type='Ljung') 
 fcasta <- forecast(model1,h=780)
 plot(fcasta)
+lines(fitted(model1), col="yellow") ## plot the model
 model1
 fcasta
 accuracy(fcasta,test)
@@ -216,3 +222,5 @@ summary(model11)
 fcasta11 <- forecast(model11,h=780)
 plot(fcasta11)
 accuracy(fcasta11,test)
+
+
