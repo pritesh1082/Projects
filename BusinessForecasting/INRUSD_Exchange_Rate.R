@@ -203,6 +203,7 @@ summary(model1)
 
 # since the p-value > .05, we fail to reject H0. Thus residuals are not correlated.
 # which means our model is validated and good to go for prediction.
+
 Box.test(model1$residuals,10,type='Ljung') # check the residuals Box-Ljung test 
 Box.test(model1$residuals^2,10,type='Ljung') 
 fcasta <- forecast(model1,h=780)
